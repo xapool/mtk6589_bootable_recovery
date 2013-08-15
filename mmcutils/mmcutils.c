@@ -41,6 +41,9 @@
 
 #include "mmcutils.h"
 
+#define XSTR(x) #x
+#define STR(x) XSTR(x)
+
 unsigned ext3_count = 0;
 char *ext3_partitions[] = {"system", "userdata", "cache", "NONE"};
 
@@ -471,13 +474,12 @@ ERROR3:
 
 
 int
-mmc_raw_dump_internal (const char* in_file, const char *out_file) {
+mmc_raw_dump_internal (const char* in_file, const char *out_file, unsigned size) {
     int ch;
     FILE *in;
     FILE *out;
     int val = 0;
     char buf[512];
-    unsigned sz = 0;
     unsigned i;
     int ret = -1;
 
@@ -489,18 +491,26 @@ mmc_raw_dump_internal (const char* in_file, const char *out_file) {
     if (out == NULL)
         goto ERROR2;
 
-    fseek(in, 0L, SEEK_END);
-    sz = ftell(in);
-    fseek(in, 0L, SEEK_SET);
-
-    if (sz % 512)
+    if (size == 0)
     {
+        fseek(in, 0L, SEEK_END);
+        size = ftell(in);
+        fseek(in, 0L, SEEK_SET);
+    }
+
+    if (size % 512)
+    {
+        unsigned counter = 0;
         while ( ( ch = fgetc ( in ) ) != EOF )
+        {
             fputc ( ch, out );
+            if (++counter == size)
+                break;
+        }
     }
     else
     {
-        for (i=0; i< (sz/512); i++)
+        for (i=0; i< (size/512); i++)
         {
             if ((fread(buf, 512, 1, in)) != 1)
                 goto ERROR1;
@@ -523,7 +533,7 @@ ERROR3:
 // TODO: refactor this to not be a giant copy paste mess
 int
 mmc_raw_dump (const MmcPartition *partition, char *out_file) {
-    return mmc_raw_dump_internal(partition->device_index, out_file);
+    return mmc_raw_dump_internal(partition->device_index, out_file, 0);
 }
 
 
@@ -594,7 +604,7 @@ int cmd_mmc_restore_raw_partition(const char *partition, const char *filename)
         return mmc_raw_copy(p, filename);
     }
     else {
-        return mmc_raw_dump_internal(filename, partition);
+        return mmc_raw_dump_internal(filename, partition, 0);
     }
 }
 
@@ -609,7 +619,31 @@ int cmd_mmc_backup_raw_partition(const char *partition, const char *filename)
         return mmc_raw_dump(p, filename);
     }
     else {
-        return mmc_raw_dump_internal(partition, filename);
+        unsigned size = 0;
+
+        // take boot and recovery partition sizes into account if defined
+#if defined(CWM_EMMC_BOOT_DEVICE_NAME) && defined(CWM_EMMC_BOOT_DEVICE_SIZE)
+        if (strcmp(partition, STR(CWM_EMMC_BOOT_DEVICE_NAME)) == 0) {
+            size = CWM_EMMC_BOOT_DEVICE_SIZE;
+            printf("CWM_EMMC_BOOT_DEVICE: %s; Size: 0x%x\n", partition, size);
+        }
+#endif
+
+#if defined(CWM_EMMC_RECOVERY_DEVICE_NAME) && defined(CWM_EMMC_RECOVERY_DEVICE_SIZE)
+        if (strcmp(partition, STR(CWM_EMMC_RECOVERY_DEVICE_NAME)) == 0) {
+            size = CWM_EMMC_RECOVERY_DEVICE_SIZE;
+            printf("CWM_EMMC_RECOVERY_DEVICE: %s; Size: 0x%x\n", partition, size);
+        }
+#endif
+
+#if defined(CWM_EMMC_UBOOT_DEVICE_NAME) && defined(CWM_EMMC_UBOOT_DEVICE_SIZE)
+        if (strcmp(partition, STR(CWM_EMMC_UBOOT_DEVICE_NAME)) == 0) {
+            size = CWM_EMMC_UBOOT_DEVICE_SIZE;
+            printf("CWM_EMMC_UBOOT_DEVICE: %s; Size: 0x%x\n", partition, size);
+        }
+#endif
+
+        return mmc_raw_dump_internal(partition, filename, size);
     }
 }
 
