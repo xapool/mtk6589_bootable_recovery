@@ -419,6 +419,7 @@ copy_sideloaded_package(const char* original_path) {
 static char**
 prepend_title(char** headers) {
     char* title[] = { EXPAND(RECOVERY_VERSION),
+                      EXPAND(RECOVERY_VERSION_INFO),
                       "",
                       NULL };
 
@@ -840,6 +841,7 @@ main(int argc, char **argv) {
     device_ui_init(&ui_parameters);
     ui_init();
     ui_print(EXPAND(RECOVERY_VERSION)"\n");
+    ui_print(EXPAND(RECOVERY_VERSION_INFO)"\n");
     load_volume_table();
     process_volumes();
     LOGI("Processing arguments.\n");
@@ -886,7 +888,7 @@ main(int argc, char **argv) {
 
     if (!sehandle) {
         fprintf(stderr, "Warning: No file_contexts\n");
-        ui_print("Warning:  No file_contexts\n");
+        // ui_print("Warning:  No file_contexts\n");
     }
 
     LOGI("device_recovery_start()\n");
